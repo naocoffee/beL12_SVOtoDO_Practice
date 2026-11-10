@@ -6,7 +6,8 @@
 
 const APP_TITLE = "Lesson 12 A　SVO＋不定詞（動詞＋人＋to do）";
 const LESSON_NAME = "Lesson 12 A 一覧";   // 記録（log）に書くレッスン名
-const LOG_URL = "https://script.google.com/macros/s/AKfycbzmgGcLSJc50ijxHDKUCTmUPB8dhkbjAKqpgby6tvqltto-PMfC2qTDAHjoYE36-NHI/exec";
+// 記録先：スプレッドシート「Lesson 12 A 一覧 学習記録」
+const LOG_URL = "https://script.google.com/macros/s/AKfycbxNpjCNaDGhbFNuQcTOQixS2L9MpXXHsBR0k4d6i0YEngVx84N_YGoq4o4yG6JmpP5Q/exec";
 const COUNT_OPTIONS = [10, 20];          // このほかに「全問」が自動で加わる
 const INSTRUCTION = "日本語に合うように、（　）に1語ずつ入れなさい。";
 
