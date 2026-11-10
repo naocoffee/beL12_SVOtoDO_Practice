@@ -9,7 +9,36 @@ const LESSON_NAME = "Lesson 12 A 一覧";   // 記録（log）に書くレッス
 // 記録先：スプレッドシート「Lesson 12 A 一覧 学習記録」
 const LOG_URL = "https://script.google.com/macros/s/AKfycbxNpjCNaDGhbFNuQcTOQixS2L9MpXXHsBR0k4d6i0YEngVx84N_YGoq4o4yG6JmpP5Q/exec";
 const COUNT_OPTIONS = [10, 20];          // このほかに「全問」が自動で加わる
-const INSTRUCTION = "日本語に合うように、（　）に1語ずつ入れなさい。";
+const MODES = {
+  write:  { label: "記述型", desc: "（　）に1語ずつ書いて答える",
+            inst: "日本語に合うように、（　）に1語ずつ入れなさい。" },
+  select: { label: "選択型", desc: "下の語から選んで（　）に入れる",
+            inst: "日本語に合うように、下の語から選んで（　）に入れなさい。使わない語が1つあります。" }
+};
+const DUMMY_COUNT = 1;                   // 選択型でまぜるダミーの数
+
+// どちらを使っても正解にする語（allow と permit）
+const SAME_WORDS = [
+  ["allow", "permit"], ["allows", "permits"], ["allowed", "permitted"], ["allowing", "permitting"]
+];
+const SAME_NOTE = "※ allow と permit はどちらを使っても正解です（permit のほうがかたい言い方）。";
+
+// 選択型のダミー候補（問題番号ごと。毎回この中から DUMMY_COUNT 個を選ぶ）
+const DUMMIES = {
+  1: ["your", "sang", "for"],         2: ["I", "doing", "for"],
+  3: ["my", "watching", "not"],       4: ["helped", "I", "for"],
+  5: ["showing", "I", "want"],        6: ["said", "I", "doing"],
+  7: ["no", "his", "don't"],          8: ["said", "calming", "for"],
+  9: ["were", "telling", "washing"],  10: ["for", "coming", "came"],
+  11: ["they", "do", "no"],           12: ["he", "don't", "opening"],
+  13: ["advice", "taking", "I"],      14: ["advice", "no", "eating"],
+  15: ["let", "leaving", "for"],      16: ["were", "allowing", "left"],
+  17: ["no", "allowing", "playing"],  18: ["did", "coming", "let"],
+  19: ["explaining", "I", "let"],     20: ["no", "permitting", "taking"],
+  21: ["are", "not", "speaking"],     22: ["enable", "communicating", "for"],
+  23: ["she", "entering", "into"],    24: ["made", "I", "making"],
+  25: ["had", "checking", "for"]
+};
 
 const POINT = [
   "〈動詞＋人＋to do〉では、to do の意味上の主語は「人（O）」。",
@@ -127,6 +156,7 @@ const QUESTIONS = [
 
 const app = document.getElementById("app");
 const SID_KEY = "l12_student_id";
+const MODE_KEY = "l12_mode";
 let state = null;
 
 function esc(s) {
@@ -143,6 +173,17 @@ function norm(s) {
   return toHalf(s).replace(/[‘’`]/g, "'").replace(/[.,!?]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+// 正解かどうか（allow / permit などは入れかえても正解）
+function same(input, answer) {
+  const a = norm(input), b = norm(answer);
+  if (a === b) return true;
+  return SAME_WORDS.some(p => p.includes(a) && p.includes(b));
+}
+
+function usesSame(q) {
+  return q.answers.some(a => SAME_WORDS.some(p => p.includes(norm(a))));
+}
+
 function shuffle(a) {
   const b = a.slice();
   for (let i = b.length - 1; i > 0; i--) {
@@ -152,8 +193,8 @@ function shuffle(a) {
   return b;
 }
 
-function loadSid() { try { return localStorage.getItem(SID_KEY) || ""; } catch (e) { return ""; } }
-function saveSid(v) { try { localStorage.setItem(SID_KEY, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
 function send(data) {
   if (!LOG_URL) return;
@@ -174,10 +215,17 @@ function fullSentence(q, mark) {
 function renderStart(msg) {
   const total = QUESTIONS.length;
   const counts = COUNT_OPTIONS.filter(n => n < total);
+  const mode = MODES[load(MODE_KEY)] ? load(MODE_KEY) : "write";
   let h = "<h1>" + esc(APP_TITLE) + "</h1>";
   h += '<div class="box">' + POINT.map(esc).join("<br>") + "</div>";
   h += '<label for="sid">学籍番号（数字4桁）</label>';
-  h += '<input type="text" class="sid" id="sid" inputmode="numeric" maxlength="4" autocomplete="off" value="' + esc(loadSid()) + '">';
+  h += '<input type="text" class="sid" id="sid" inputmode="numeric" maxlength="4" autocomplete="off" value="' + esc(load(SID_KEY)) + '">';
+  h += '<label>解答方式</label><div class="modes">';
+  Object.keys(MODES).forEach(k => {
+    h += '<label class="radio"><input type="radio" name="mode" value="' + k + '"' + (k === mode ? " checked" : "") + "> " +
+      esc(MODES[k].label) + '<span class="small">　' + esc(MODES[k].desc) + "</span></label>";
+  });
+  h += "</div>";
   h += '<label>問題数</label><div class="counts">';
   counts.forEach(n => { h += '<button data-n="' + n + '">' + n + "問</button>"; });
   h += '<button data-n="' + total + '">全問（' + total + "問）</button></div>";
@@ -186,24 +234,37 @@ function renderStart(msg) {
   app.querySelectorAll("button[data-n]").forEach(b => {
     b.onclick = () => {
       const sid = toHalf(document.getElementById("sid").value).trim();
+      const m = (app.querySelector('input[name="mode"]:checked') || {}).value || "write";
+      save(MODE_KEY, m);
       if (!/^\d{4}$/.test(sid)) { renderStart("学籍番号を数字4桁で入力してください。"); return; }
-      saveSid(sid);
+      save(SID_KEY, sid);
       const n = Number(b.dataset.n);
       const label = n >= total ? "全問" + total + "問" : n + "問";
-      startQuiz(sid, shuffle(QUESTIONS).slice(0, n), label);
+      startQuiz(sid, m, shuffle(QUESTIONS).slice(0, n), label);
     };
   });
 }
 
-function startQuiz(sid, list, countLabel) {
+function startQuiz(sid, mode, list, countLabel) {
   state = {
     sid: sid,
+    mode: mode,
     list: list,
-    countLabel: countLabel,
+    countLabel: countLabel + "・" + MODES[mode].label,
     pos: 0,
-    rec: list.map(q => ({ inputs: q.answers.map(() => ""), status: null }))
+    rec: list.map(q => {
+      const r = { inputs: q.answers.map(() => ""), status: null };
+      if (mode === "select") {
+        // 選択肢：正解の語 ＋ ダミー（毎回ちがうものを選ぶ）
+        const ans = q.answers.map(norm);
+        const cand = shuffle((DUMMIES[q.no] || []).filter(d => !ans.includes(norm(d))));
+        r.chips = shuffle(q.answers.concat(cand.slice(0, DUMMY_COUNT)));
+        r.sel = q.answers.map(() => -1);   // 各空所に入れた選択肢の番号
+      }
+      return r;
+    })
   };
-  send({ type: "session", student: sid, lesson: LESSON_NAME, count: countLabel });
+  send({ type: "session", student: sid, lesson: LESSON_NAME, count: state.countLabel });
   renderQuestion();
 }
 
@@ -212,15 +273,21 @@ function renderQuestion() {
   const q = state.list[state.pos];
   const r = state.rec[state.pos];
   const done = r.status !== null;
+  const isSel = state.mode === "select";
   let bi = 0;
   const sent = esc(q.template).replace(/\{\}/g, () => {
     const i = bi++;
     let cls = "blank";
     let fix = "";
     if (done) {
-      const ok = norm(r.inputs[i]) === norm(q.answers[i]);
+      const ok = same(r.inputs[i], q.answers[i]);
       cls += ok ? " ok" : " ng";
       if (!ok) fix = '<span class="fix">' + esc(q.answers[i]) + "</span>";
+    }
+    if (isSel) {
+      const w = r.inputs[i];
+      return '<span class="' + cls + ' slot' + (w ? "" : " empty") + '" data-i="' + i + '">' +
+        (w ? esc(w) : "&nbsp;") + "</span>" + fix;
     }
     return '<input type="text" class="' + cls + '" data-i="' + i + '" value="' + esc(r.inputs[i]) + '"' +
       (done ? " disabled" : "") + ' autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">' + fix;
@@ -228,10 +295,17 @@ function renderQuestion() {
 
   let h = '<div class="head"><span>' + (state.pos + 1) + " / " + state.list.length + "</span>";
   h += "<span>No." + q.no + "　出典：" + esc(q.src) + "</span></div>";
-  h += '<p class="small">' + esc(INSTRUCTION) + "</p>";
+  h += '<p class="small">' + esc(MODES[state.mode].inst) + "</p>";
   h += '<p class="form">' + esc(q.form) + '</p><p class="meaning">' + esc(q.meaning) + "</p>";
   h += '<p class="ja">' + esc(q.ja) + "</p>";
   h += '<p class="sentence">' + sent + "</p>";
+  if (isSel && !done) {
+    h += '<div class="chips">';
+    r.chips.forEach((c, k) => {
+      h += '<button class="chip" data-k="' + k + '"' + (r.sel.includes(k) ? " disabled" : "") + ">" + esc(c) + "</button>";
+    });
+    h += "</div>";
+  }
   h += '<div class="buttons">';
   h += '<button id="back"' + (state.pos === 0 ? " disabled" : "") + ">もどる</button>";
   if (!done) {
@@ -246,24 +320,50 @@ function renderQuestion() {
     h += '<div class="feedback"><p class="verdict ' + v[0] + '">' + v[1] + "</p>";
     h += '<p class="answer">' + fullSentence(q, true) + "</p>";
     h += "<p>" + esc(q.ja) + "</p>";
-    h += '<p class="note">' + esc(q.note) + "</p></div>";
+    h += '<p class="note">' + esc(q.note) + "</p>";
+    if (usesSame(q)) h += '<p class="note small">' + esc(SAME_NOTE) + "</p>";
+    h += "</div>";
   }
   app.innerHTML = h;
 
-  const inputs = Array.from(app.querySelectorAll("input.blank"));
-  inputs.forEach((inp, k) => {
-    inp.oninput = () => { r.inputs[k] = inp.value; };
-    inp.onkeydown = e => {
-      if (e.key !== "Enter" || e.isComposing) return;
-      e.preventDefault();
-      if (k < inputs.length - 1) inputs[k + 1].focus(); else check();
-    };
-  });
+  if (isSel) {
+    if (!done) {
+      app.querySelectorAll(".chip").forEach(b => {
+        b.onclick = () => {
+          const k = Number(b.dataset.k);
+          const i = r.sel.indexOf(-1);
+          if (i < 0) return;
+          r.sel[i] = k;
+          r.inputs[i] = r.chips[k];
+          renderQuestion();
+        };
+      });
+      app.querySelectorAll(".slot").forEach(s => {
+        s.onclick = () => {
+          const i = Number(s.dataset.i);
+          if (r.sel[i] < 0) return;
+          r.sel[i] = -1;
+          r.inputs[i] = "";
+          renderQuestion();
+        };
+      });
+    }
+  } else {
+    const inputs = Array.from(app.querySelectorAll("input.blank"));
+    inputs.forEach((inp, k) => {
+      inp.oninput = () => { r.inputs[k] = inp.value; };
+      inp.onkeydown = e => {
+        if (e.key !== "Enter" || e.isComposing) return;
+        e.preventDefault();
+        if (k < inputs.length - 1) inputs[k + 1].focus(); else check();
+      };
+    });
+    if (!done && inputs[0] && window.matchMedia && window.matchMedia("(hover: hover)").matches) inputs[0].focus();
+  }
   document.getElementById("back").onclick = () => { if (state.pos > 0) { state.pos--; renderQuestion(); } };
   if (!done) {
     document.getElementById("skip").onclick = () => finish("skip");
     document.getElementById("check").onclick = check;
-    if (inputs[0] && window.matchMedia && window.matchMedia("(hover: hover)").matches) inputs[0].focus();
   } else {
     const nx = document.getElementById("next");
     nx.onclick = next;
@@ -274,7 +374,7 @@ function renderQuestion() {
 function check() {
   const q = state.list[state.pos];
   const r = state.rec[state.pos];
-  const ok = q.answers.every((a, i) => norm(r.inputs[i]) === norm(a));
+  const ok = q.answers.every((a, i) => same(r.inputs[i], a));
   finish(ok ? "ok" : "ng");
 }
 
@@ -305,6 +405,7 @@ function renderResult() {
   const skip = state.rec.filter(r => r.status === "skip").length;
   const miss = state.list.filter((q, i) => state.rec[i].status !== "ok");
   let h = "<h1>結果</h1>";
+  h += "<p>解答方式：" + esc(MODES[state.mode].label) + "</p>";
   h += "<p>正答数：" + ok + " / " + n + "</p>";
   h += "<p>とばした数：" + skip + "</p>";
   if (miss.length) {
@@ -316,9 +417,9 @@ function renderResult() {
   if (miss.length) h += '<button id="review" class="primary">間違えた・とばした問題で復習</button>';
   h += '<button id="home">最初の画面にもどる</button></div>';
   app.innerHTML = h;
-  if (miss.length) document.getElementById("review").onclick = () => startQuiz(state.sid, shuffle(miss), "復習" + miss.length + "問");
+  if (miss.length) document.getElementById("review").onclick = () => startQuiz(state.sid, state.mode, shuffle(miss), "復習" + miss.length + "問");
   document.getElementById("home").onclick = () => renderStart();
-  window.scrollTo(0, 0);
+  try { window.scrollTo(0, 0); } catch (e) {}
 }
 
 renderStart();
