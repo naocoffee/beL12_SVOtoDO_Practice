@@ -1,0 +1,94 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #fff;
+  color: #222;
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "ヒラギノ角ゴ ProN W3", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+#app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+h1 { font-size: 1.2em; margin: 0 0 12px; }
+p { margin: 6px 0; }
+.small { font-size: 0.85em; color: #666; }
+
+.box {
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  margin: 10px 0;
+  font-size: 0.9em;
+}
+
+label { display: block; margin: 12px 0 4px; font-weight: bold; }
+
+select, input[type="text"].sid {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #999;
+  border-radius: 0;
+  background: #fff;
+}
+input.sid { width: 8em; }
+
+.counts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+button {
+  font: inherit;
+  padding: 8px 16px;
+  border: 1px solid #333;
+  border-radius: 0;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+}
+button.primary { background: #222; color: #fff; }
+button:disabled { opacity: 0.4; cursor: default; }
+
+.head { display: flex; justify-content: space-between; font-size: 0.85em; color: #666; }
+
+.form { margin: 12px 0 2px; font-weight: bold; }
+.meaning { font-size: 0.9em; color: #444; }
+.ja { margin: 12px 0 4px; }
+
+.sentence {
+  font-size: 1.1em;
+  line-height: 2.4;
+  margin: 8px 0 16px;
+  word-break: break-word;
+}
+
+input.blank {
+  font: inherit;
+  width: 6.5em;
+  padding: 2px 4px;
+  margin: 0 2px;
+  border: none;
+  border-bottom: 1px solid #333;
+  border-radius: 0;
+  text-align: center;
+  background: transparent;
+}
+input.blank.ok { color: #1a7f37; }
+input.blank.ng { color: #c00; text-decoration: line-through; }
+
+.fix { color: #c00; font-size: 0.85em; margin: 0 2px; }
+
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+.feedback { border-top: 1px solid #ccc; margin-top: 12px; padding-top: 8px; }
+.verdict { font-weight: bold; }
+.verdict.ok { color: #1a7f37; }
+.verdict.ng { color: #c00; }
+.answer b { color: #c00; }
+.note { white-space: pre-line; font-size: 0.95em; }
+
+.error { color: #c00; font-size: 0.9em; }
+
+ul.review { padding-left: 1.2em; }
